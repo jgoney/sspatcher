@@ -1,12 +1,20 @@
+#!/usr/bin/env python
+
 import argparse
 import collections
 import itertools
 import logging
 import os
 import string
+import wave
+
+from io import BytesIO
+
+from intelhex import IntelHex
 
 # Constants describing the image file and format of the wavetable data.
-IMAGE_SIZE = 0x200000
+IMAGE_SIZE_SHORT = 0x200000
+IMAGE_SIZE_LONG = 0x800000
 NUM_WT = 128
 WT_NAME_OFFSET = 0x0F0000
 WT_NAME_LENGTH = 8
@@ -91,6 +99,9 @@ def read_wavetables_from_files(path):
     # Build the dictionary
     wavetables = {}
     for wt_file in os.listdir(path):
+        if wt_file == ".DS_Store":
+            continue
+        
         with open(os.path.join(path, wt_file), 'rb') as f:
             name = sanitize_name(os.path.splitext(wt_file)[0])
             data = f.read()
@@ -115,10 +126,10 @@ def check_image_size(filename):
 
     :param filename: String path to the shapeshifter rom image.
     """
-    if os.path.getsize(filename) != IMAGE_SIZE:
+    if os.path.getsize(filename) != IMAGE_SIZE_SHORT and os.path.getsize(filename) != IMAGE_SIZE_LONG:
         raise SSPatcherError(
-            'Shapeshifter ROM image ({}) had unexpected size (got {}, expected {}).'.format(
-                filename, os.path.getsize(filename), IMAGE_SIZE
+            'Shapeshifter ROM image ({}) had unexpected size (got {}, expected {} or {}).'.format(
+                filename, os.path.getsize(filename), IMAGE_SIZE_SHORT, IMAGE_SIZE_LONG
             )
         )
 
@@ -142,6 +153,14 @@ def extract(source, destination):
             len(names), len(tables), NUM_WT
         ))
     for name, table in zip(names, tables):
+        # write wavs for testing
+        new_wav = "{}/{}.wav".format("test_wavs", name)
+        with wave.open(new_wav, mode="wb") as f_out:
+            f_out.setnchannels(1)
+            f_out.setsampwidth(2)
+            f_out.setframerate(44100)
+            f_out.writeframes(table)
+
         with open(os.path.join(destination, name.decode() + '.raw'), 'wb') as f:
             f.write(table)
 
@@ -191,6 +210,34 @@ def patch(source, destination):
         f.seek(WT_DATA_OFFSET)
         f.write(wt_data)
 
+def derive_names(source):
+    data = read_wavetables_from_files(source)
+    names = data.keys()
+    wavetables = data.values()
+
+    name_data = WT_NAME_PREFIX + WT_NAME_PREFIX.join(names)
+    wt_data = b''.join(wavetables)
+
+    # names
+    in_f = BytesIO(name_data)
+
+    ih = IntelHex()
+    ih.loadbin(in_f, offset=WT_NAME_OFFSET)
+
+    out_f = open(source + '_names.hex', 'w')
+    ih.write_hex_file(out_f)
+    out_f.close()
+
+    # waves
+    in_f = BytesIO(wt_data)
+
+    ih = IntelHex()
+    ih.loadbin(in_f, offset=WT_DATA_OFFSET)
+
+    out_f = open(source + '_waves.hex', 'w')
+    ih.write_hex_file(out_f)
+    out_f.close()
+
 
 if __name__ == '__main__':
     # Setup logging for error reporting.
@@ -202,9 +249,9 @@ if __name__ == '__main__':
 
     # Configure and run argparse.
     parser = argparse.ArgumentParser()
-    parser.add_argument('image', help='Name of the Shapeshifter EEPROM image file.')
-    parser.add_argument(
-        'directory',
+    parser.add_argument('-i', '--image', help='Name of the Shapeshifter EEPROM image file.')
+    parser.add_argument('-d',
+        '--directory',
         nargs='?',
         help="Directory where extracted wavetable data will be written. If it doesn't exist, it will be created. "
              "Default: %(default)s",
@@ -213,6 +260,7 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-e', '--extract', help='Extract wavetables from the image.', action='store_true')
     group.add_argument('-p', '--patch', help='Patch the image file with new wavetables.', action='store_true')
+    group.add_argument('-x', '--intelhex', help='Derive wavetables and names from directory of files, and write to IntelHex format.', action='store_true')
     args = parser.parse_args()
 
     # Perform the user's requested action - exceptions are caught to provide less intimidating error messaging.
@@ -221,7 +269,10 @@ if __name__ == '__main__':
             extract(args.image, args.directory)
             print("Successfully extracted wavetables from {} and put them in {}.".format(args.image, args.directory))
         elif args.patch:
-            patch(args.image, args.directory)
+            patch(args.directory, args.image)
             print("Successfully patched {} with wavetables found in {}.".format(args.image, args.directory))
+        elif args.intelhex:
+            derive_names(args.directory)
+            print("Derived names and waves from {} and wrote them to names.hex and waves.hex.".format(args.directory, ))
     except (SSPatcherError, IOError) as e:
         log.error(e)

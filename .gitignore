@@ -1,4 +1,8 @@
 .idea/*
 *.bin
+*.hex
 sstables/*
 test_read/*
+env/
+.vscode
+
