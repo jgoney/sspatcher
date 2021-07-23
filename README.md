@@ -2,7 +2,7 @@
 
 Utility for extracting and replacing wavetables in the Intellijel Shapeshifter eurorack module EEPROM image.
 
-These tools are built to work with _.bin firmware images (the old way), and will not work with the newer _.jic images as provided on the Intellijel website. It's not possible to work with the \*.jic files directly due to a proprietary encryption scheme.
+These tools are built to work with .bin firmware images (the old way), and will not work with the newer .jic images as provided on the Intellijel website. It's not possible to work with the .jic files directly due to a proprietary encryption scheme.
 
 ## Getting started
 
@@ -31,12 +31,12 @@ optional arguments:
   -x, --intelhex        Derive wavetables and names from directory of files, and write to IntelHex format.
 ```
 
-## How to merge _.sof and _.hex files to make new \*.jic file
+## How to merge .sof and .hex files to make new .jic file
 
-Flashing Shapeshifter with a \*.jic file is MUCH faster than the old method that used a _.bin file. Here's how you can create a _.jic file from a \*.sof file and one or more \*.hex files.
+Flashing Shapeshifter with a .jic file is MUCH faster than the old method that used a .bin file. Here's how you can create a .jic file from a .sof file and one or more .hex files.
 
-- Generate _.hex files with name and wave data using this script. This function expects a directory with 128 _.raw audio files. Beware Shapeshifter's naming quirks. This script's `extract` function generates suitable files, given a correct Shapeshifter \*.bin firmware file.
-- Use the `Convert Programming File` command in Quartus Prime to merge the _.sof file and _.hex files generated in the previous step. Your settings should resemble the screenshot:
+- Generate .hex files with name and wave data using this script. This function expects a directory with 128 .raw audio files. Beware Shapeshifter's naming quirks. This script's `extract` function generates suitable files, given a correct Shapeshifter .bin firmware file.
+- Use the `Convert Programming File` command in Quartus Prime to merge the .sof file and .hex files generated in the previous step. Your settings should resemble the screenshot:
 
 ![Convert Programming File](merge-sof-and-hex-files.png)
 
