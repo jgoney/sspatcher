@@ -35,7 +35,7 @@ optional arguments:
 
 Flashing Shapeshifter with a .jic file is MUCH faster than the old method that used a .bin file. Here's how you can create a .jic file from a .sof file and one or more .hex files.
 
-- Generate .hex files with name and wave data using this script. This function expects a directory with 128 .raw audio files. Beware Shapeshifter's naming quirks. This script's `extract` function generates suitable files, given a correct Shapeshifter .bin firmware file.
+- Generate .hex files with name and wave data using the `intelhex` function in this script. This function expects a directory with 128 .raw audio files. Beware Shapeshifter's naming quirks. This script's `extract` function generates suitable files, given a correct Shapeshifter .bin firmware file.
 - Use the `Convert Programming File` command in Quartus Prime to merge the .sof file and .hex files generated in the previous step. Your settings should resemble the screenshot:
 
 ![Convert Programming File](merge-sof-and-hex-files.png)
