@@ -86,10 +86,30 @@ def read_wt_names(f):
     return [name[len(WT_NAME_PREFIX):] for name in wt_names]
 
 
-def read_wavetables_from_files(path):
+def _get_index_from_filename(wt):
+    name = wt[0]
+
+    try:
+        i, _ = name.split('_', 1)
+    except ValueError:
+        raise SSPatcherError("--sortprefix flag given, but {} seems to not be formatted".format(name)) 
+    
+    return int(i)
+
+
+def _get_name_from_filename(name):
+    try:
+        _, name = name.split('_', 1)
+    except ValueError:
+        raise SSPatcherError("--sortprefix flag given, but {} seems to not be formatted".format(name)) 
+    
+    return name.strip()
+
+def read_wavetables_from_files(path, is_prefixed=False):
     """Read wavetable data from files and infer wavetable names from the filenames.
 
     :param path: String path to the directory where the files are located.
+    :param is_prefixed: Boolean key for whether or not wavetable names are prefixed with sorting info.
     :return: Ordered dict where keys are bytes containing the names of length WT_USER_NAME_LENGTH and values are bytes
              of length WT_DATA_LENGTH containing audio data.
     """
@@ -103,7 +123,8 @@ def read_wavetables_from_files(path):
             continue
         
         with open(os.path.join(path, wt_file), 'rb') as f:
-            name = sanitize_name(os.path.splitext(wt_file)[0])
+            name = os.path.splitext(wt_file)[0]
+
             data = f.read()
             if name in wavetables:
                 raise SSPatcherError('Duplicate name "{}" in wavetable names.'.format(name))
@@ -113,12 +134,17 @@ def read_wavetables_from_files(path):
                 )
             wavetables[name] = data
 
+    if is_prefixed:
+        wavetables = {sanitize_name(_get_name_from_filename(name)): data for name, data in sorted(wavetables.items(), key=_get_index_from_filename)}
+    else:
+        wavetables = {sanitize_name(name): data for name, data in sorted(wavetables.items(), key=lambda item: item[0].strip())}
+
     # Basic sanity checking is done while building the dict, but make sure we also got the right number of wavetables
     if len(wavetables) != NUM_WT:
         raise SSPatcherError('Found wrong number of wavetables (expected {}, got {}).'.format(NUM_WT, len(wavetables)))
 
     # Return a sorted dict - can be padded with spaces on the left, so strip whitespace when sorting.
-    return collections.OrderedDict(sorted(wavetables.items(), key=lambda item: item[0].strip()))
+    return collections.OrderedDict(wavetables.items())
 
 
 def check_image_size(filename):
@@ -210,8 +236,9 @@ def patch(source, destination):
         f.seek(WT_DATA_OFFSET)
         f.write(wt_data)
 
-def derive_names(source):
-    data = read_wavetables_from_files(source)
+def derive_names(source, is_prefixed=False):
+
+    data = read_wavetables_from_files(source, is_prefixed=is_prefixed)
     names = data.keys()
     wavetables = data.values()
 
@@ -249,6 +276,9 @@ if __name__ == '__main__':
 
     # Configure and run argparse.
     parser = argparse.ArgumentParser()
+    parser.add_argument('--sortprefix', dest='sortprefix', action='store_true')
+    parser.set_defaults(sortprefix=False)
+
     parser.add_argument('-i', '--image', help='Name of the Shapeshifter EEPROM image file.')
     parser.add_argument('-d',
         '--directory',
@@ -272,7 +302,7 @@ if __name__ == '__main__':
             patch(args.directory, args.image)
             print("Successfully patched {} with wavetables found in {}.".format(args.image, args.directory))
         elif args.intelhex:
-            derive_names(args.directory)
+            derive_names(args.directory, is_prefixed=args.sortprefix)
             print("Derived names and waves from {} and wrote them to names.hex and waves.hex.".format(args.directory, ))
     except (SSPatcherError, IOError) as e:
         log.error(e)
